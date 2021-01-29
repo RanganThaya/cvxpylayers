@@ -1,21 +1,24 @@
-import diffcp
 import time
+
 import cvxpy as cp
-from cvxpy.reductions.solvers.conic_solvers.scs_conif import \
-    dims_to_solver_dict
+import diffcp
 import numpy as np
+from cvxpy.reductions.solvers.conic_solvers.scs_conif import dims_to_solver_dict
 
 try:
     import torch
 except ImportError:
-    raise ImportError("Unable to import torch. Please install at "
-                      "https://pytorch.org.")
+    raise ImportError(
+        "Unable to import torch. Please install at " "https://pytorch.org."
+    )
 
-torch_major_version = int(torch.__version__.split('.')[0])
+torch_major_version = int(torch.__version__.split(".")[0])
 if torch_major_version < 1:
-    raise ImportError("cvxpylayers requires PyTorch >= 1.0; please "
-                      "upgrade your installation of PyTorch, which is "
-                      "version %s." % torch.__version__)
+    raise ImportError(
+        "cvxpylayers requires PyTorch >= 1.0; please "
+        "upgrade your installation of PyTorch, which is "
+        "version %s." % torch.__version__
+    )
 
 
 class CvxpyLayer(torch.nn.Module):
@@ -73,25 +76,27 @@ class CvxpyLayer(torch.nn.Module):
         self.gp = gp
         if self.gp:
             if not problem.is_dgp(dpp=True):
-                raise ValueError('Problem must be DPP.')
+                raise ValueError("Problem must be DPP.")
         else:
             if not problem.is_dcp(dpp=True):
-                raise ValueError('Problem must be DPP.')
+                raise ValueError("Problem must be DPP.")
 
         if not set(problem.parameters()) == set(parameters):
-            raise ValueError("The layer's parameters must exactly match "
-                             "problem.parameters")
+            raise ValueError(
+                "The layer's parameters must exactly match " "problem.parameters"
+            )
         if not set(variables).issubset(set(problem.variables())):
-            raise ValueError("Argument variables must be a subset of "
-                             "problem.variables")
-        if not isinstance(parameters, list) and \
-           not isinstance(parameters, tuple):
-            raise ValueError("The layer's parameters must be provided as "
-                             "a list or tuple")
-        if not isinstance(variables, list) and \
-           not isinstance(variables, tuple):
-            raise ValueError("The layer's variables must be provided as "
-                             "a list or tuple")
+            raise ValueError(
+                "Argument variables must be a subset of " "problem.variables"
+            )
+        if not isinstance(parameters, list) and not isinstance(parameters, tuple):
+            raise ValueError(
+                "The layer's parameters must be provided as " "a list or tuple"
+            )
+        if not isinstance(variables, list) and not isinstance(variables, tuple):
+            raise ValueError(
+                "The layer's variables must be provided as " "a list or tuple"
+            )
 
         self.param_order = parameters
         self.variables = variables
@@ -103,10 +108,11 @@ class CvxpyLayer(torch.nn.Module):
         if self.gp:
             for param in parameters:
                 if param.value is None:
-                    raise ValueError("An initial value for each parameter is "
-                                     "required when gp=True.")
-            data, solving_chain, _ = problem.get_problem_data(
-                solver=cp.SCS, gp=True)
+                    raise ValueError(
+                        "An initial value for each parameter is "
+                        "required when gp=True."
+                    )
+            data, solving_chain, _ = problem.get_problem_data(solver=cp.SCS, gp=True)
             self.compiler = data[cp.settings.PARAM_PROB]
             self.dgp2dcp = solving_chain.get(cp.reductions.Dgp2Dcp)
             self.param_ids = [p.id for p in self.compiler.parameters]
@@ -133,9 +139,11 @@ class CvxpyLayer(torch.nn.Module):
           supplied to the constructor.
         """
         if len(params) != len(self.param_ids):
-            raise ValueError('A tensor must be provided for each CVXPY '
-                             'parameter; received %d tensors, expected %d' % (
-                                 len(params), len(self.param_ids)))
+            raise ValueError(
+                "A tensor must be provided for each CVXPY "
+                "parameter; received %d tensors, expected %d"
+                % (len(params), len(self.param_ids))
+            )
         info = {}
         f = _CvxpyLayerFn(
             param_order=self.param_order,
@@ -165,16 +173,17 @@ def to_torch(x, dtype, device):
 
 
 def _CvxpyLayerFn(
-        param_order,
-        param_ids,
-        variables,
-        var_dict,
-        compiler,
-        cone_dims,
-        gp,
-        dgp2dcp,
-        solver_args,
-        info):
+    param_order,
+    param_ids,
+    variables,
+    var_dict,
+    compiler,
+    cone_dims,
+    gp,
+    dgp2dcp,
+    solver_args,
+    info,
+):
     class _CvxpyLayerFnFn(torch.autograd.Function):
         @staticmethod
         def forward(ctx, *params):
@@ -189,15 +198,13 @@ def _CvxpyLayerFn(
                     raise ValueError(
                         "Two or more parameters have different dtypes. "
                         "Expected parameter %d to have dtype %s but "
-                        "got dtype %s." %
-                        (i, str(ctx.dtype), str(p.dtype))
+                        "got dtype %s." % (i, str(ctx.dtype), str(p.dtype))
                     )
                 if p.device != ctx.device:
                     raise ValueError(
                         "Two or more parameters are on different devices. "
                         "Expected parameter %d to be on device %s "
-                        "but got device %s." %
-                        (i, str(ctx.device), str(p.device))
+                        "but got device %s." % (i, str(ctx.device), str(p.device))
                     )
 
                 # check and extract the batch size for the parameter
@@ -210,13 +217,16 @@ def _CvxpyLayerFn(
                     if batch_size == 0:
                         raise ValueError(
                             "The batch dimension for parameter {} is zero "
-                            "but should be non-zero.".format(i))
+                            "but should be non-zero.".format(i)
+                        )
                 else:
                     raise ValueError(
                         "Invalid parameter size passed in. Expected "
                         "parameter {} to have have {} or {} dimensions "
                         "but got {} dimensions".format(
-                            i, q.ndim, q.ndim + 1, p.ndimension()))
+                            i, q.ndim, q.ndim + 1, p.ndimension()
+                        )
+                    )
 
                 ctx.batch_sizes.append(batch_size)
 
@@ -226,10 +236,8 @@ def _CvxpyLayerFn(
                     raise ValueError(
                         "Inconsistent parameter shapes passed in. "
                         "Expected parameter {} to have non-batched shape of "
-                        "{} but got {}.".format(
-                                i,
-                                q.shape,
-                                p.shape))
+                        "{} but got {}.".format(i, q.shape, p.shape)
+                    )
 
             ctx.batch_sizes = np.array(ctx.batch_sizes)
             ctx.batch = np.any(ctx.batch_sizes > 0)
@@ -241,16 +249,14 @@ def _CvxpyLayerFn(
                     raise ValueError(
                         "Inconsistent batch sizes passed in. Expected "
                         "parameters to have no batch size or all the same "
-                        "batch size but got sizes: {}.".format(
-                            ctx.batch_sizes))
+                        "batch size but got sizes: {}.".format(ctx.batch_sizes)
+                    )
             else:
                 ctx.batch_size = 1
 
             if gp:
                 ctx.params = params
-                ctx.old_params_to_new_params = (
-                    dgp2dcp.canon_methods._parameters
-                )
+                ctx.old_params_to_new_params = dgp2dcp.canon_methods._parameters
                 param_map = {}
                 # construct a list of params for the DCP problem
                 for param, value in zip(param_order, params):
@@ -270,39 +276,42 @@ def _CvxpyLayerFn(
             for i in range(ctx.batch_size):
                 params_numpy_i = [
                     p if sz == 0 else p[i]
-                    for p, sz in zip(params_numpy, ctx.batch_sizes)]
+                    for p, sz in zip(params_numpy, ctx.batch_sizes)
+                ]
                 c, _, neg_A, b = compiler.apply_parameters(
-                    dict(zip(param_ids, params_numpy_i)),
-                    keep_zeros=True)
+                    dict(zip(param_ids, params_numpy_i)), keep_zeros=True
+                )
                 A = -neg_A  # cvxpy canonicalizes -A
                 As.append(A)
                 bs.append(b)
                 cs.append(c)
                 cone_dicts.append(cone_dims)
                 ctx.shapes.append(A.shape)
-            info['canon_time'] = time.time() - start
+            info["canon_time"] = time.time() - start
 
             # compute solution and derivative function
             start = time.time()
             try:
-                xs, _, _, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
-                    As, bs, cs, cone_dicts, **solver_args)
+                xs, ys, ss, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
+                    As, bs, cs, cone_dicts, **solver_args
+                )
             except diffcp.SolverError as e:
                 print(
                     "Please consider re-formulating your problem so that "
                     "it is always solvable or increasing the number of "
-                    "solver iterations.")
+                    "solver iterations."
+                )
                 raise e
-            info['solve_time'] = time.time() - start
+            info["solve_time"] = time.time() - start
 
             # extract solutions and append along batch dimension
             sol = [[] for _ in range(len(variables))]
             for i in range(ctx.batch_size):
-                sltn_dict = compiler.split_solution(
-                    xs[i], active_vars=var_dict)
+                sltn_dict = compiler.split_solution(xs[i], active_vars=var_dict)
                 for j, v in enumerate(variables):
-                    sol[j].append(to_torch(
-                        sltn_dict[v.id], ctx.dtype, ctx.device).unsqueeze(0))
+                    sol[j].append(
+                        to_torch(sltn_dict[v.id], ctx.dtype, ctx.device).unsqueeze(0)
+                    )
             sol = [torch.cat(s, 0) for s in sol]
 
             if not ctx.batch:
@@ -312,13 +321,13 @@ def _CvxpyLayerFn(
                 sol = [torch.exp(s) for s in sol]
                 ctx.sol = sol
 
-            return tuple(sol)
+            return {"sol": tuple(sol), "warm": (xs, ys, ss)}
 
         @staticmethod
         def backward(ctx, *dvars):
             if gp:
                 # derivative of exponential recovery transformation
-                dvars = [dvar*s for dvar, s in zip(dvars, ctx.sol)]
+                dvars = [dvar * s for dvar, s in zip(dvars, ctx.sol)]
 
             dvars_numpy = [to_numpy(dvar) for dvar in dvars]
 
@@ -341,11 +350,13 @@ def _CvxpyLayerFn(
             start = time.time()
             grad = [[] for _ in range(len(param_ids))]
             for i in range(ctx.batch_size):
-                del_param_dict = compiler.apply_param_jac(
-                    dcs[i], -dAs[i], dbs[i])
+                del_param_dict = compiler.apply_param_jac(dcs[i], -dAs[i], dbs[i])
                 for j, pid in enumerate(param_ids):
-                    grad[j] += [to_torch(del_param_dict[pid],
-                                         ctx.dtype, ctx.device).unsqueeze(0)]
+                    grad[j] += [
+                        to_torch(del_param_dict[pid], ctx.dtype, ctx.device).unsqueeze(
+                            0
+                        )
+                    ]
             grad = [torch.cat(g, 0) for g in grad]
 
             if gp:
@@ -360,7 +371,7 @@ def _CvxpyLayerFn(
                         # new_param.value == log(param), apply chain rule
                         g += (1.0 / value) * dparams[dcp_param_id]
                     grad.append(g)
-            info['dcanon_time'] = time.time() - start
+            info["dcanon_time"] = time.time() - start
 
             if not ctx.batch:
                 grad = [g.squeeze(0) for g in grad]
