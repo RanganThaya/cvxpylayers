@@ -1,9 +1,16 @@
+import math
+import multiprocessing
 import time
 
 import cvxpy as cp
 import diffcp
 import numpy as np
+import ray
 from cvxpy.reductions.solvers.conic_solvers.scs_conif import dims_to_solver_dict
+from diffcp.solver import solve
+from poly_nlp.utils.data_manipulation.data_manipulation import create_list_chunks
+
+import torch
 
 try:
     import torch
@@ -167,9 +174,20 @@ def to_numpy(x):
     return x.cpu().detach().double().numpy()
 
 
+def to_numpy_warm(x, x_r):
+    # convert torch tensor to numpy array
+    data = [
+        val for i, val in enumerate(x.cpu().detach().double().numpy()) if i < len(x_r)
+    ]
+    return data
+
+
 def to_torch(x, dtype, device):
     # convert numpy array to torch tensor
-    return torch.from_numpy(x).type(dtype).to(device)
+    if isinstance(x, list):
+        return torch.from_numpy(np.array(x)).type(dtype).to(device)
+    else:
+        return torch.from_numpy(x).type(dtype).to(device)
 
 
 def _CvxpyLayerFn(
@@ -292,6 +310,21 @@ def _CvxpyLayerFn(
             # compute solution and derivative function
             start = time.time()
             try:
+                warm_starts = None
+                if (
+                    "warm_starts" in solver_args
+                    and solver_args["warm_starts"] is not None
+                ):
+                    warms_args = [
+                        to_numpy_warm(val, As) for val in solver_args["warm_starts"]
+                    ]
+                    if len(warms_args[0]) != len(As):
+                        solver_args["warm_starts"] = None
+                    else:
+                        solver_args["warm_starts"] = [
+                            (warms_args[0][i], warms_args[1][i], warms_args[2][i])
+                            for i in range(len(warms_args[0]))
+                        ]
                 xs, ys, ss, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
                     As, bs, cs, cone_dicts, **solver_args
                 )
@@ -320,8 +353,13 @@ def _CvxpyLayerFn(
             if gp:
                 sol = [torch.exp(s) for s in sol]
                 ctx.sol = sol
+            sol += [
+                to_torch(xs, ctx.dtype, ctx.device),
+                to_torch(ys, ctx.dtype, ctx.device),
+                to_torch(ss, ctx.dtype, ctx.device),
+            ]
 
-            return {"sol": tuple(sol), "warm": (xs, ys, ss)}
+            return tuple(sol)
 
         @staticmethod
         def backward(ctx, *dvars):
