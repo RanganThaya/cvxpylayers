@@ -8,6 +8,9 @@ from torch.autograd import grad
 
 from cvxpylayers.torch import CvxpyLayer
 import diffcp
+import ray
+
+ray.init()
 
 torch.set_default_dtype(torch.double)
 

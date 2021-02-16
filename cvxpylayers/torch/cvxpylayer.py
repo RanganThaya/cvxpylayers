@@ -7,7 +7,8 @@ import diffcp
 import numpy as np
 import ray
 from cvxpy.reductions.solvers.conic_solvers.scs_conif import dims_to_solver_dict
-from diffcp.solver import solve
+from diffcp.derivative import derivative_batch
+from diffcp.solver import solve_batch
 from poly_nlp.utils.data_manipulation.data_manipulation import create_list_chunks
 
 import torch
@@ -307,10 +308,14 @@ def _CvxpyLayerFn(
                 ctx.shapes.append(A.shape)
             info["canon_time"] = time.time() - start
 
+            ctx.As = As
+            ctx.bs = bs
+            ctx.cs = cs
+            ctx.cone_dicts = cone_dicts
+
             # compute solution and derivative function
             start = time.time()
             try:
-                warm_starts = None
                 if (
                     "warm_starts" in solver_args
                     and solver_args["warm_starts"] is not None
@@ -328,6 +333,7 @@ def _CvxpyLayerFn(
                 xs, ys, ss, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
                     As, bs, cs, cone_dicts, **solver_args
                 )
+                # xs, ys, ss = solve_batch(As, bs, cs, cone_dicts, **solver_args)
             except diffcp.SolverError as e:
                 print(
                     "Please consider re-formulating your problem so that "
@@ -353,6 +359,10 @@ def _CvxpyLayerFn(
             if gp:
                 sol = [torch.exp(s) for s in sol]
                 ctx.sol = sol
+
+            ctx.xs = xs
+            ctx.ys = ys
+            ctx.ss = ss
             sol += [
                 to_torch(xs, ctx.dtype, ctx.device),
                 to_torch(ys, ctx.dtype, ctx.device),
@@ -383,6 +393,18 @@ def _CvxpyLayerFn(
                 dss.append(np.zeros(ctx.shapes[i][0]))
 
             dAs, dbs, dcs = ctx.DT_batch(dxs, dys, dss)
+            # dAs, dbs, dcs = derivative_batch(
+            #     ctx.As,
+            #     ctx.bs,
+            #     ctx.cs,
+            #     dxs,
+            #     dys,
+            #     dss,
+            #     ctx.xs,
+            #     ctx.ys,
+            #     ctx.ss,
+            #     ctx.cone_dicts,
+            # )
 
             # differentiate from cone problem data to cvxpy parameters
             start = time.time()
