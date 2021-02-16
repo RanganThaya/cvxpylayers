@@ -330,10 +330,10 @@ def _CvxpyLayerFn(
                             (warms_args[0][i], warms_args[1][i], warms_args[2][i])
                             for i in range(len(warms_args[0]))
                         ]
-                xs, ys, ss, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
-                    As, bs, cs, cone_dicts, **solver_args
-                )
-                # xs, ys, ss = solve_batch(As, bs, cs, cone_dicts, **solver_args)
+                # xs, ys, ss, _, ctx.DT_batch = diffcp.solve_and_derivative_batch(
+                #     As, bs, cs, cone_dicts, **solver_args
+                # )
+                xs, ys, ss = solve_batch(As, bs, cs, cone_dicts, **solver_args)
             except diffcp.SolverError as e:
                 print(
                     "Please consider re-formulating your problem so that "
@@ -392,19 +392,19 @@ def _CvxpyLayerFn(
                 dys.append(np.zeros(ctx.shapes[i][0]))
                 dss.append(np.zeros(ctx.shapes[i][0]))
 
-            dAs, dbs, dcs = ctx.DT_batch(dxs, dys, dss)
-            # dAs, dbs, dcs = derivative_batch(
-            #     ctx.As,
-            #     ctx.bs,
-            #     ctx.cs,
-            #     dxs,
-            #     dys,
-            #     dss,
-            #     ctx.xs,
-            #     ctx.ys,
-            #     ctx.ss,
-            #     ctx.cone_dicts,
-            # )
+            # dAs, dbs, dcs = ctx.DT_batch(dxs, dys, dss)
+            dAs, dbs, dcs = derivative_batch(
+                ctx.As,
+                ctx.bs,
+                ctx.cs,
+                dxs,
+                dys,
+                dss,
+                ctx.xs,
+                ctx.ys,
+                ctx.ss,
+                ctx.cone_dicts,
+            )
 
             # differentiate from cone problem data to cvxpy parameters
             start = time.time()

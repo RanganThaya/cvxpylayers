@@ -1,4 +1,5 @@
 # Data files
+*.history/*
 *.csv
 *.png
 *.pdf
